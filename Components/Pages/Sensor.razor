@@ -136,26 +136,58 @@ else
                 }
                 else if (readings != null && readings.Any())
                 {
-                    <div class="readings-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Temperature (°F)</th>
-                                    <th>Humidity (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var reading in readings.OrderByDescending(r => r.TimeStamp))
+                    <div class="chart-panel">
+                        <RadzenChart Style="height: 420px; width: 100%;" ShowLegend="false" Animate="true">
+                            <RadzenCategoryAxis Step="@(TimeSpan.FromHours(1))" FormatString="{0:MMM d h:mm tt}">
+                                <RadzenAxisTitle Text="Time" />
+                            </RadzenCategoryAxis>
+                            <RadzenValueAxis Min="@chartMin" Max="@chartMax">
+                                <RadzenAxisTitle Text="Temperature (°F)" />
+                            </RadzenValueAxis>
+
+                            @foreach (var segment in lineSegments)
+                            {
+                                <RadzenLineSeries Data="@segment"
+                                                  CategoryProperty="TimeStamp"
+                                                  ValueProperty="TempF"
+                                                  Stroke="steelblue"
+                                                  StrokeWidth="2" />
+                            }
+
+                            @if (showMinThresholdLine && minThresholdSeries is not null)
+                            {
+                                <RadzenLineSeries Data="@minThresholdSeries"
+                                                  CategoryProperty="TimeStamp"
+                                                  ValueProperty="TempF"
+                                                  Stroke="lightblue"
+                                                  StrokeWidth="1"
+                                                  StrokeDashArray="4,4" />
+                            }
+
+                            @if (showMaxThresholdLine && maxThresholdSeries is not null)
+                            {
+                                <RadzenLineSeries Data="@maxThresholdSeries"
+                                                  CategoryProperty="TimeStamp"
+                                                  ValueProperty="TempF"
+                                                  Stroke="red"
+                                                  StrokeWidth="1"
+                                                  StrokeDashArray="4,4" />
+                            }
+                        </RadzenChart>
+
+                        @if (showMinThresholdLine || showMaxThresholdLine)
+                        {
+                            <div class="chart-legend">
+                                @if (showMinThresholdLine)
                                 {
-                                    <tr>
-                                        <td>@FormatTimestamp(reading.TimeStamp)</td>
-                                        <td>@reading.TempF.ToString("F1")</td>
-                                        <td>@reading.Humidity.ToString("F1")</td>
-                                    </tr>
+                                    <span class="legend-item"><span class="legend-swatch legend-min"></span>Minimum allowed</span>
                                 }
-                            </tbody>
-                        </table>
+                                @if (showMaxThresholdLine)
+                                {
+                                    <span class="legend-item"><span class="legend-swatch legend-max"></span>Maximum allowed</span>
+                                }
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -266,11 +298,14 @@ else
                     var tsUtc = r.TimeStamp.Kind == DateTimeKind.Utc ? r.TimeStamp : DateTime.SpecifyKind(r.TimeStamp, DateTimeKind.Utc);
                     return tsUtc <= maxAllowedUtc;
                 }).ToList();
+
+                PrepareChartData();
             }
         catch (Exception ex)
         {
             readingsError = $"Unable to load readings: {ex.Message}";
             readings = new List<ReadingDTO>();
+            PrepareChartData();
         }
         finally
         {
@@ -302,6 +337,14 @@ else
         return localTime.ToString("g");
     }
 
+    private List<List<ReadingDTO>> lineSegments = new();
+    private List<ReadingDTO>? minThresholdSeries;
+    private List<ReadingDTO>? maxThresholdSeries;
+    private bool showMinThresholdLine;
+    private bool showMaxThresholdLine;
+    private double? chartMin;
+    private double? chartMax;
+
     private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
     {
         if (!lastTemp.HasValue)
@@ -320,6 +363,77 @@ else
         }
 
         return false;
+    }
+
+    private void PrepareChartData()
+    {
+        lineSegments.Clear();
+        minThresholdSeries = null;
+        maxThresholdSeries = null;
+        showMinThresholdLine = false;
+        showMaxThresholdLine = false;
+        chartMin = null;
+        chartMax = null;
+
+        if (readings == null || !readings.Any())
+        {
+            return;
+        }
+
+        var sortedReadings = readings.OrderBy(r => r.TimeStamp).ToList();
+        var currentSegment = new List<ReadingDTO>();
+        DateTime? previousTimestamp = null;
+
+        foreach (var reading in sortedReadings)
+        {
+            var readingTimestampUtc = reading.TimeStamp.Kind == DateTimeKind.Utc
+                ? reading.TimeStamp
+                : DateTime.SpecifyKind(reading.TimeStamp, DateTimeKind.Utc);
+
+            if (previousTimestamp.HasValue && (readingTimestampUtc - previousTimestamp.Value).TotalHours > 1)
+            {
+                if (currentSegment.Count > 0)
+                {
+                    lineSegments.Add(currentSegment);
+                    currentSegment = new List<ReadingDTO>();
+                }
+            }
+
+            currentSegment.Add(reading);
+            previousTimestamp = readingTimestampUtc;
+        }
+
+        if (currentSegment.Count > 0)
+        {
+            lineSegments.Add(currentSegment);
+        }
+
+        var values = sortedReadings.Select(r => r.TempF).ToList();
+        var minValue = values.Min();
+        var maxValue = values.Max();
+        var padding = Math.Max((maxValue - minValue) * 0.08, 1.0);
+        chartMin = Math.Floor((minValue - padding) * 10) / 10.0;
+        chartMax = Math.Ceiling((maxValue + padding) * 10) / 10.0;
+
+        if (currentSensor?.MinTempF is double sensorMin && sensorMin >= chartMin && sensorMin <= chartMax)
+        {
+            showMinThresholdLine = true;
+            minThresholdSeries = sortedReadings.Select(r => new ReadingDTO
+            {
+                TimeStamp = r.TimeStamp,
+                TempF = sensorMin
+            }).ToList();
+        }
+
+        if (currentSensor?.MaxTempF is double sensorMax && sensorMax >= chartMin && sensorMax <= chartMax)
+        {
+            showMaxThresholdLine = true;
+            maxThresholdSeries = sortedReadings.Select(r => new ReadingDTO
+            {
+                TimeStamp = r.TimeStamp,
+                TempF = sensorMax
+            }).ToList();
+        }
     }
 
     private static bool IsRecent(DateTime? timestamp)

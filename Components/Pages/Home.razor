@@ -20,14 +20,16 @@ else if (!farms.Any())
 else
 {
     <p>Select a farm from the list below to view its sensors.</p>
-    <ul class="list-group">
-        @foreach (var farm in farms)
-        {
-            <li class="list-group-item">
-                <a href="@($"/{farm.Name}")">@farm.Name</a>
-            </li>
-        }
-    </ul>
+    <div style="max-width: 400px">
+        <ul class="list-group">
+            @foreach (var farm in farms)
+            {
+                <li class="list-group-item">
+                    <a href="@($"/{farm.Name}")">@farm.Name</a>
+                </li>
+            }
+        </ul>
+    </div>
 }
 
 @code {

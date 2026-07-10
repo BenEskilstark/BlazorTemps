@@ -919,7 +919,7 @@ else
 
         var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
         @* var localTime = utcTime.ToLocalTime(); *@
-        DateTime localTime = (DateTime)timestamp;
+        DateTime localTime = (DateTime)lastHeartbeat;
         var today = DateTime.Now.Date;
 
         if (localTime.Date == today)

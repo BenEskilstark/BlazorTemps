@@ -271,7 +271,50 @@ else
                                 </RadzenLineSeries>
                             }
                         </RadzenChart>
-                        
+                    </div>
+
+                    <div class="chart-panel" style="margin-top: 1.5rem;">
+                        <RadzenChart Style="height: 420px; width: 100%;" ShowLegend="false" Animate="true">
+                            <RadzenLegend Visible="false" />
+                            <RadzenCategoryAxis Step="@chartStep" FormatString="@chartCategoryFormatString">
+                                <RadzenAxisTitle Text="Time" />
+                            </RadzenCategoryAxis>
+                            <RadzenValueAxis Min="@humidityChartMin" Max="@humidityChartMax">
+                                <RadzenAxisTitle Text="Humidity (%)" />
+                            </RadzenValueAxis>
+
+                            @foreach (var segment in humidityLineSegments)
+                            {
+                                <RadzenLineSeries Data="@segment"
+                                                  CategoryProperty="TimeStamp"
+                                                  ValueProperty="Humidity"
+                                                  Stroke="steelblue"
+                                                  StrokeWidth="2">
+                                    <TooltipTemplate Context="data">
+                                        <div style="padding: 4px 8px;">
+                                            <strong>Time:</strong> @data.TimeStamp.ToString("g") <br />
+                                            <strong>Humidity:</strong> @data.Humidity %
+                                        </div>
+                                    </TooltipTemplate>
+                                </RadzenLineSeries>
+                            }
+
+                            @foreach (var segment in outsideHumidityLineSegments)
+                            {
+                                <RadzenLineSeries Data="@segment"
+                                                  CategoryProperty="TimeStamp"
+                                                  ValueProperty="Humidity"
+                                                  Stroke="green"
+                                                  StrokeWidth="2">
+                                    <TooltipTemplate Context="data">
+                                        <div style="padding: 4px 8px;">
+                                            <strong>Time:</strong> @data.TimeStamp.ToString("g") <br />
+                                            <strong>Outside Humidity:</strong> @data.Humidity %
+                                        </div>
+                                    </TooltipTemplate>
+                                </RadzenLineSeries>
+                            }
+                        </RadzenChart>
                     </div>
                 }
             </div>
@@ -635,12 +678,16 @@ else
 
     private List<List<ReadingDTO>> lineSegments = new();
     private List<List<ReadingDTO>> outsideLineSegments = new();
+    private List<List<ReadingDTO>> humidityLineSegments = new();
+    private List<List<ReadingDTO>> outsideHumidityLineSegments = new();
     private List<ReadingDTO>? minThresholdSeries;
     private List<ReadingDTO>? maxThresholdSeries;
     private bool showMinThresholdLine;
     private bool showMaxThresholdLine;
     private double? chartMin;
     private double? chartMax;
+    private double? humidityChartMin;
+    private double? humidityChartMax;
     private TimeSpan chartStep = TimeSpan.FromHours(1);
     private string chartCategoryFormatString = "{0:MMM d h:mm tt}";
 
@@ -680,6 +727,7 @@ else
         if (sortedReadings.Any())
         {
             lineSegments.AddRange(BuildLineSegments(sortedReadings));
+            humidityLineSegments.AddRange(BuildLineSegments(sortedReadings));
             currentValues.AddRange(sortedReadings.Select(r => r.TempF));
         }
 
@@ -687,7 +735,19 @@ else
         if (sortedOutsideReadings.Any())
         {
             outsideLineSegments.AddRange(BuildLineSegments(sortedOutsideReadings));
+            outsideHumidityLineSegments.AddRange(BuildLineSegments(sortedOutsideReadings));
             currentValues.AddRange(sortedOutsideReadings.Select(r => r.TempF));
+        }
+
+        var humidityValues = new List<double>();
+        if (sortedReadings.Any())
+        {
+            humidityValues.AddRange(sortedReadings.Select(r => r.Humidity));
+        }
+
+        if (sortedOutsideReadings.Any())
+        {
+            humidityValues.AddRange(sortedOutsideReadings.Select(r => r.Humidity));
         }
 
         if (!currentValues.Any())
@@ -695,11 +755,19 @@ else
             return;
         }
 
-        var minValue = currentValues.Min();
-        var maxValue = currentValues.Max();
-        var padding = Math.Max((maxValue - minValue) * 0.08, 1.0);
-        chartMin = Math.Floor((minValue - padding) * 10) / 10.0;
-        chartMax = Math.Ceiling((maxValue + padding) * 10) / 10.0;
+        if (humidityValues.Any())
+        {
+            var minHumidity = humidityValues.Min();
+            var maxHumidity = humidityValues.Max();
+            var humidityPadding = Math.Max((maxHumidity - minHumidity) * 0.08, 1.0);
+            humidityChartMin = Math.Floor((minHumidity - humidityPadding) * 10) / 10.0;
+            humidityChartMax = Math.Ceiling((maxHumidity + humidityPadding) * 10) / 10.0;
+        }
+        else
+        {
+            humidityChartMin = null;
+            humidityChartMax = null;
+        }
 
         if (sortedReadings.Any() && currentSensor?.MinTempF is double sensorMin && sensorMin >= chartMin && sensorMin <= chartMax)
         {

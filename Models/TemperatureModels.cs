@@ -18,6 +18,28 @@ namespace BlazorTemps.Models
         public double? MaxTempF { get; set; }
     }
 
+    public sealed class SensorUpdateDTO
+    {
+        public int SensorID { get; set; }
+        public required string Name { get; set; }
+        public double CalibrationValueF { get; set; } = 0;
+        public double? MinTempF { get; set; }
+        public double? MaxTempF { get; set; }
+    }
+
+    public sealed class FarmLoginDTO
+    {
+        public int FarmID { get; set; }
+        public required string Name { get; set; }
+        public required string Password { get; set; }
+    }
+
+    public sealed class TokenResponseDTO
+    {
+        public string? Token { get; set; }
+        public string? AccessToken { get; set; }
+    }
+
     public sealed class ReadingsResponseDTO
     {
         public required List<ReadingDTO> Readings { get; set; }

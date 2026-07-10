@@ -26,9 +26,8 @@
 .sensor-card-link {
     text-decoration: none;
     color: inherit;
-    flex: 0 1 320px;
-    max-width: 100%;
-    min-width: 0;
+    display: block;
+    width: 100%;
 }
 
 .sensor-card {
@@ -147,6 +146,47 @@
 
 .sensor-last-temp.out-of-range {
     color: #c0392b;
+}
+
+.sensor-card-wrapper {
+    position: relative;
+    flex: 0 1 320px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.favorite-star {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 50%;
+    background: white;
+    font-size: 1.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(28, 18, 55, 0.15);
+    transition: all 180ms ease;
+    filter: grayscale(100%) brightness(1.1);
+    z-index: 10;
+}
+
+.favorite-star:hover {
+    transform: scale(1.1);
+    filter: grayscale(50%) brightness(1.05);
+}
+
+.favorite-star.favorited {
+    filter: grayscale(0%) drop-shadow(0 0 6px rgba(255, 193, 7, 0.7));
+}
+
+.favorite-star.favorited:hover {
+    transform: scale(1.15);
 }
 
 .sensor-last-temp.stale {

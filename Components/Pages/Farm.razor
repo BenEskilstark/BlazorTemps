@@ -81,7 +81,7 @@ else
 
                                 <div class="sensor-metric">
                                     <span class="metric-label">Last heartbeat</span>
-                                    <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@GetHeartbeatText(sensor.LastHeartbeat)</span>
+                                    <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@FormatTimestamp(sensor.LastHeartbeat)</span>
                                 </div>
                             </div>
                         </article>
@@ -191,26 +191,29 @@ else
             return "N/A";
         }
 
-        // 1. Safely normalize the incoming timestamp to UTC
-        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc 
-            ? timestamp.Value 
-            : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
+        // 1. Force the incoming digits to be treated as UTC
+        var utcTime = DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
 
-        // 2. Locate the US Eastern Time zone rule (handles EDT/EST shifts automatically)
-        TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        // 2. Safely grab the Eastern rules 
+        var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
         
-        // 3. Convert the normalized UTC time and get "Right Now" in Eastern Time
-        DateTime easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
-        DateTime easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
+        // 3. Perform the conversion
+        var easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
+        var easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
+        
+        // 4. Force standard US formatting rules natively
+        var culture = new System.Globalization.CultureInfo("en-US");
 
-        // 4. Compare dates using the identical timezone context
         if (easternTime.Date == easternToday)
         {
-            return easternTime.ToString("t"); // e.g., "3:59 PM"
+            return easternTime.ToString("h:mm tt", culture); // e.g., 4:26 PM
         }
-
-        return easternTime.ToString("g"); // e.g., "7/10/2026 3:59 PM"
+        
+        return easternTime.ToString("M/d/yyyy h:mm tt", culture); // e.g., 7/10/2026 4:26 PM
     }
+
+
+
 
 
     private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)

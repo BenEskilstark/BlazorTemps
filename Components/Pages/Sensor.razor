@@ -47,7 +47,7 @@ else
                         style="text-wrap: nowrap" 
                         class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
                     >
-                        @GetHeartbeatText(currentSensor.LastHeartbeat)
+                        @FormatTimestamp(currentSensor.LastHeartbeat)
                     </span>
                 </div>
 
@@ -664,25 +664,27 @@ else
             return "N/A";
         }
 
-        // 1. Safely normalize the incoming timestamp to UTC
-        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc 
-            ? timestamp.Value 
-            : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
+        // 1. Strip out any local server bias and treat the digits as UTC
+        DateTime utcTime = DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
 
-        // 2. Locate the US Eastern Time zone rule (handles EDT/EST shifts automatically)
+        // 2. Identify the Eastern timezone
         TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
         
-        // 3. Convert the normalized UTC time and get "Right Now" in Eastern Time
+        // 3. Convert to Eastern Time digits
         DateTime easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
         DateTime easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
 
-        // 4. Compare dates using the identical timezone context
+        // 4. Force a US Culture to guarantee 12-hour AM/PM notation
+        var usCulture = new System.Globalization.CultureInfo("en-US");
+
         if (easternTime.Date == easternToday)
         {
-            return easternTime.ToString("t"); // e.g., "3:59 PM"
+            // "h" forces 12-hour format, "tt" forces AM/PM (e.g., "4:22 PM")
+            return easternTime.ToString("h:mm tt", usCulture); 
         }
 
-        return easternTime.ToString("g"); // e.g., "7/10/2026 3:59 PM"
+        // (e.g., "7/10/2026 4:22 PM")
+        return easternTime.ToString("M/d/yyyy h:mm tt", usCulture); 
     }
 
 
@@ -779,7 +781,10 @@ else
             humidityChartMax = null;
         }
 
-        if (sortedReadings.Any() && currentSensor?.MinTempF is double sensorMin && sensorMin >= chartMin && sensorMin <= chartMax)
+        if (sortedReadings.Any() && 
+            currentSensor?.MinTempF is double sensorMin
+            @* sensorMin >= chartMin && sensorMin <= chartMax *@
+        )
         {
             showMinThresholdLine = true;
             minThresholdSeries = sortedReadings.Select(r => new ReadingDTO
@@ -789,7 +794,10 @@ else
             }).ToList();
         }
 
-        if (sortedReadings.Any() && currentSensor?.MaxTempF is double sensorMax && sensorMax >= chartMin && sensorMax <= chartMax)
+        if (sortedReadings.Any() && 
+            currentSensor?.MaxTempF is double sensorMax
+            @* sensorMax >= chartMin && sensorMax <= chartMax *@
+        )
         {
             showMaxThresholdLine = true;
             maxThresholdSeries = sortedReadings.Select(r => new ReadingDTO

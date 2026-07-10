@@ -665,7 +665,8 @@ else
         }
 
         var utcTime = timestamp.Value.Kind == DateTimeKind.Utc ? timestamp.Value : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
-        var localTime = utcTime.ToLocalTime();
+        @* var localTime = utcTime.ToLocalTime(); *@
+        var localTime = timeStamp;
         var today = DateTime.Now.Date;
 
         if (localTime.Date == today)

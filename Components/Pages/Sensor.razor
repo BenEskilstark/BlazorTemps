@@ -2,6 +2,7 @@
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
 @using BlazorTemps.Models
+@rendermode InteractiveServer 
 
 <PageTitle>Sensor - @sensorName</PageTitle>
 
@@ -86,9 +87,13 @@ else
                     </div>
                 </div>
             }
-            <div class="time-range-selector">
+            <div style="display: flex; gap: 10px;">
+                <div class="time-range-selector">
                     <label for="timeRange">Time Range:</label>
-                    <select id="timeRange" class="form-select" value="@selectedTimeRange" @onchange="OnTimeRangeChanged">
+                    <select id="timeRange" class="form-select" 
+                        value="@selectedTimeRange" 
+                        @onchange="@(async (ChangeEventArgs e) => { selectedTimeRange = e.Value?.ToString() ?? selectedTimeRange; await LoadReadings(); })"
+                    >
                         <option value="Last Hour">Last Hour</option>
                         <option value="Last 6">Last 6 hours</option>
                         <option value="Last 12">Last 12 hours</option>
@@ -102,31 +107,35 @@ else
                     </select>
                 </div>
 
+                @if (readings != null && readings.Any())
+                {
+                    <div class="statistics-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Average</div>
+                            <div class="stat-value">@FormatTemperature(readings.Average(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Minimum</div>
+                            <div class="stat-value">@FormatTemperature(readings.Min(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Maximum</div>
+                            <div class="stat-value">@FormatTemperature(readings.Max(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Readings</div>
+                            <div class="stat-value">@readings.Count</div>
+                        </div>
+                    </div>
+                }
+                </div>
+
                 @if (readingsError != null)
                 {
                     <div class="alert alert-danger">@readingsError</div>
                 }
                 else if (readings != null && readings.Any())
                 {
-                    <div class="statistics-grid">
-                        <div class="stat-card">
-                            <div class="stat-label">Minimum Temperature</div>
-                            <div class="stat-value">@FormatTemperature(readings.Min(r => r.TempF))</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Maximum Temperature</div>
-                            <div class="stat-value">@FormatTemperature(readings.Max(r => r.TempF))</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Average Temperature</div>
-                            <div class="stat-value">@FormatTemperature(readings.Average(r => r.TempF))</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Reading Count</div>
-                            <div class="stat-value">@readings.Count</div>
-                        </div>
-                    </div>
-
                     <div class="readings-table">
                         <table>
                             <thead>
@@ -148,10 +157,6 @@ else
                             </tbody>
                         </table>
                     </div>
-                }
-                else
-                {
-                    <p>No readings available for this time range.</p>
                 }
             </div>
     </div>
@@ -235,13 +240,6 @@ else
         }
     }
 
-    private async Task OnTimeRangeChanged(ChangeEventArgs e)
-    {
-        selectedTimeRange = e.Value?.ToString() ?? "Last 6";
-        await LoadReadings();
-        StateHasChanged();
-    }
-
     private async Task LoadReadings()
     {
         if (!sensorID.HasValue)
@@ -252,15 +250,23 @@ else
         isLoadingReadings = true;
         readingsError = null;
 
-        try
-        {
-            var encodedTimeRange = Uri.EscapeDataString(selectedTimeRange);
-            var response = await Http.GetFromJsonAsync<ReadingsResponseDTO>(
-                $"http://temperatures.chickenkiller.com/api/v1/sensor/{sensorID}?timeRange={encodedTimeRange}"
-            );
+            try
+            {
+                var encodedTimeRange = Uri.EscapeDataString(selectedTimeRange);
+                var response = await Http.GetFromJsonAsync<ReadingsResponseDTO>(
+                    $"http://temperatures.chickenkiller.com/api/v1/sensor/{sensorID}?timeRange={encodedTimeRange}"
+                );
 
-            readings = response?.Readings ?? new List<ReadingDTO>();
-        }
+                var fetched = response?.Readings ?? new List<ReadingDTO>();
+
+                // Filter out readings that are more than 10 minutes in the future
+                var maxAllowedUtc = DateTime.UtcNow.AddMinutes(10);
+                readings = fetched.Where(r =>
+                {
+                    var tsUtc = r.TimeStamp.Kind == DateTimeKind.Utc ? r.TimeStamp : DateTime.SpecifyKind(r.TimeStamp, DateTimeKind.Utc);
+                    return tsUtc <= maxAllowedUtc;
+                }).ToList();
+            }
         catch (Exception ex)
         {
             readingsError = $"Unable to load readings: {ex.Message}";

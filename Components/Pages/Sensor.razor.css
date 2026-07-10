@@ -233,6 +233,15 @@
     white-space: nowrap;
 }
 
+.time-range-display {
+    color: #2f2640;
+    font-size: 0.95rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(108, 84, 163, 0.08);
+    border-radius: 0.5rem;
+    white-space: nowrap;
+}
+
 .form-select {
     padding: 0.5rem 0.75rem;
     border: 2px solid rgba(108, 84, 163, 0.3);
@@ -262,13 +271,16 @@
 }
 
 .statistics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    display: flex;
     gap: 1rem;
+    max-width: 500px;
+    width: 500px;
 }
 
 .stat-card {
-    padding: 1.25rem;
+    padding: 0.5rem;
+    max-height: 80px;
+    max-width: 100px;
     border-radius: 0.95rem;
     border: 1px solid rgba(108, 84, 163, 0.16);
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 241, 255, 0.93));
@@ -281,13 +293,11 @@
     color: #6d647a;
     font-size: 0.85rem;
     font-weight: 500;
-    margin-bottom: 0.75rem;
 }
 
 .stat-value {
     display: block;
     color: #251e35;
-    font-size: 1.5rem;
     font-weight: 700;
 }
 

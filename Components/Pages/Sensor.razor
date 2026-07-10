@@ -138,7 +138,8 @@ else
                 {
                     <div class="chart-panel">
                         <RadzenChart Style="height: 420px; width: 100%;" ShowLegend="false" Animate="true">
-                            <RadzenCategoryAxis Step="@(TimeSpan.FromHours(1))" FormatString="{0:MMM d h:mm tt}">
+                            <RadzenLegend Visible="false" />
+                            <RadzenCategoryAxis Step="@chartStep" FormatString="@chartCategoryFormatString">
                                 <RadzenAxisTitle Text="Time" />
                             </RadzenCategoryAxis>
                             <RadzenValueAxis Min="@chartMin" Max="@chartMax">
@@ -151,7 +152,14 @@ else
                                                   CategoryProperty="TimeStamp"
                                                   ValueProperty="TempF"
                                                   Stroke="steelblue"
-                                                  StrokeWidth="2" />
+                                                  StrokeWidth="2">
+                                    <TooltipTemplate Context="data">
+                                        <div style="padding: 4px 8px;">
+                                            <strong>Time:</strong> @data.TimeStamp.ToString("g") <br />
+                                            <strong>Temp:</strong> @data.TempF °F
+                                        </div>
+                                    </TooltipTemplate>
+                                </RadzenLineSeries>
                             }
 
                             @if (showMinThresholdLine && minThresholdSeries is not null)
@@ -160,8 +168,13 @@ else
                                                   CategoryProperty="TimeStamp"
                                                   ValueProperty="TempF"
                                                   Stroke="lightblue"
-                                                  StrokeWidth="1"
-                                                  StrokeDashArray="4,4" />
+                                                  StrokeWidth="1">
+                                    <TooltipTemplate Context="data">
+                                        <div style="padding: 4px 8px;">
+                                            <strong>Temp:</strong> @data.TempF °F
+                                        </div>
+                                    </TooltipTemplate>
+                                </RadzenLineSeries>
                             }
 
                             @if (showMaxThresholdLine && maxThresholdSeries is not null)
@@ -170,24 +183,16 @@ else
                                                   CategoryProperty="TimeStamp"
                                                   ValueProperty="TempF"
                                                   Stroke="red"
-                                                  StrokeWidth="1"
-                                                  StrokeDashArray="4,4" />
+                                                  StrokeWidth="1">
+                                    <TooltipTemplate Context="data">
+                                        <div style="padding: 4px 8px;">
+                                            <strong>Temp:</strong> @data.TempF °F
+                                        </div>
+                                    </TooltipTemplate>
+                                </RadzenLineSeries>
                             }
                         </RadzenChart>
-
-                        @if (showMinThresholdLine || showMaxThresholdLine)
-                        {
-                            <div class="chart-legend">
-                                @if (showMinThresholdLine)
-                                {
-                                    <span class="legend-item"><span class="legend-swatch legend-min"></span>Minimum allowed</span>
-                                }
-                                @if (showMaxThresholdLine)
-                                {
-                                    <span class="legend-item"><span class="legend-swatch legend-max"></span>Maximum allowed</span>
-                                }
-                            </div>
-                        }
+                        
                     </div>
                 }
             </div>
@@ -344,6 +349,8 @@ else
     private bool showMaxThresholdLine;
     private double? chartMin;
     private double? chartMax;
+    private TimeSpan chartStep = TimeSpan.FromHours(1);
+    private string chartCategoryFormatString = "{0:MMM d h:mm tt}";
 
     private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
     {
@@ -434,6 +441,52 @@ else
                 TempF = sensorMax
             }).ToList();
         }
+
+        var firstTimestamp = GetUtcTimestamp(sortedReadings.First().TimeStamp);
+        var lastTimestamp = GetUtcTimestamp(sortedReadings.Last().TimeStamp);
+        var rangeSpan = lastTimestamp - firstTimestamp;
+        if (rangeSpan <= TimeSpan.Zero)
+        {
+            rangeSpan = TimeSpan.FromHours(1);
+        }
+
+        chartStep = GetChartStep(rangeSpan);
+        chartCategoryFormatString = GetCategoryAxisFormat(rangeSpan);
+    }
+
+    private static DateTime GetUtcTimestamp(DateTime timestamp)
+    {
+        return timestamp.Kind == DateTimeKind.Utc ? timestamp : DateTime.SpecifyKind(timestamp, DateTimeKind.Utc);
+    }
+
+    private static TimeSpan GetChartStep(TimeSpan rangeSpan)
+    {
+        return rangeSpan switch
+        {
+            var span when span <= TimeSpan.FromHours(1) => TimeSpan.FromMinutes(10),
+            var span when span <= TimeSpan.FromHours(6) => TimeSpan.FromHours(1),
+            var span when span <= TimeSpan.FromHours(12) => TimeSpan.FromHours(2),
+            var span when span <= TimeSpan.FromDays(1) => TimeSpan.FromHours(4),
+            var span when span <= TimeSpan.FromDays(2) => TimeSpan.FromHours(6),
+            var span when span <= TimeSpan.FromDays(3) => TimeSpan.FromHours(12),
+            var span when span <= TimeSpan.FromDays(7) => TimeSpan.FromDays(1),
+            var span when span <= TimeSpan.FromDays(14) => TimeSpan.FromDays(2),
+            var span when span <= TimeSpan.FromDays(30) => TimeSpan.FromDays(4),
+            var span when span <= TimeSpan.FromDays(90) => TimeSpan.FromDays(7),
+            var span when span <= TimeSpan.FromDays(180) => TimeSpan.FromDays(14),
+            _ => TimeSpan.FromDays(30),
+        };
+    }
+
+    private static string GetCategoryAxisFormat(TimeSpan rangeSpan)
+    {
+        return rangeSpan switch
+        {
+            var span when span <= TimeSpan.FromDays(1) => "{0:MMM d h:mm tt}",
+            var span when span <= TimeSpan.FromDays(30) => "{0:MMM d}",
+            var span when span <= TimeSpan.FromDays(365) => "{0:MMM yyyy}",
+            _ => "{0:yyyy}",
+        };
     }
 
     private static bool IsRecent(DateTime? timestamp)

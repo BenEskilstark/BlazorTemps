@@ -1,0 +1,232 @@
+@page "/{farmName}"
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@using BlazorTemps.Models
+
+<PageTitle>Temperature Sensors - @farmName</PageTitle>
+
+@if (isLoading)
+{
+    <p><em>Loading farm data...</em></p>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (currentFarm == null)
+{
+    <div class="alert alert-warning">Farm "@farmName" not found.</div>
+}
+else
+{
+    <div class="farm-header">
+        <div>
+            <h1>@currentFarm.Name</h1>
+        </div>
+        <a class="btn btn-secondary" href="/">Back to farms</a>
+    </div>
+
+    @if (sensors == null)
+    {
+        <p><em>Loading sensors...</em></p>
+    }
+    else if (!sensors.Any())
+    {
+        <p>No sensors were found for this farm.</p>
+    }
+    else
+    {
+        <div class="sensor-card-list">
+            @foreach (var sensor in sensors.OrderBy(s => s.Name, StringComparer.Ordinal))
+            {
+                var sensorState = GetSensorAlertState(sensor.LastHeartbeat, sensor.LastTimeStamp);
+                var isOutOfRange = IsOutOfRange(sensor.LastTempF, sensor.MinTempF, sensor.MaxTempF);
+                var cardClass = sensorState == SensorAlertState.Offline ? "sensor-card offline" : "sensor-card";
+                var badgeClass = sensorState switch
+                {
+                    SensorAlertState.TempProbeDown => "sensor-badge warning",
+                    SensorAlertState.Offline => "sensor-badge offline",
+                    _ => "sensor-badge active"
+                };
+                var temperatureClass = sensorState switch
+                {
+                    SensorAlertState.Offline => "sensor-last-temp stale",
+                    SensorAlertState.TempProbeDown => "sensor-last-temp stale",
+                    _ => isOutOfRange ? "sensor-last-temp out-of-range" : "sensor-last-temp"
+                };
+
+                <article class="@cardClass">
+                    <div class="sensor-card-header">
+                        <h2>@sensor.Name</h2>
+                        <span class="@badgeClass">@GetStatusLabel(sensorState)</span>
+                    </div>
+
+                    <div class="sensor-card-body">
+                        <div class="sensor-metric sensor-metric-highlight">
+                            <span class="@temperatureClass">@(FormatTemperature(sensor.LastTempF)) at @(FormatTimestamp(sensor.LastTimeStamp))</span>
+                        </div>
+
+                        <div class="sensor-metric">
+                            <span class="metric-label">Last heartbeat</span>
+                            <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@GetHeartbeatText(sensor.LastHeartbeat)</span>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string? farmName { get; set; }
+
+    private FarmDTO? currentFarm;
+    private IReadOnlyList<SensorDTO>? sensors;
+    private string? errorMessage;
+    private bool isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        currentFarm = null;
+        sensors = null;
+
+        if (string.IsNullOrWhiteSpace(farmName))
+        {
+            NavigationManager.NavigateTo("/");
+            return;
+        }
+
+        try
+        {
+            var farms = await Http.GetFromJsonAsync<List<FarmDTO>>("farms");
+            currentFarm = farms?.FirstOrDefault(f => string.Equals(f.Name, farmName, StringComparison.OrdinalIgnoreCase));
+
+            if (currentFarm == null)
+            {
+                NavigationManager.NavigateTo("/not-found", true);
+                return;
+            }
+
+            sensors = await Http.GetFromJsonAsync<List<SensorDTO>>($"sensors/{currentFarm.FarmID}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Unable to load farm or sensor data. " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private enum SensorAlertState
+    {
+        Active,
+        TempProbeDown,
+        Offline
+    }
+
+    private static string FormatTemperature(double? temperature)
+    {
+        return temperature.HasValue ? $"{temperature.Value:F1} °F" : "N/A";
+    }
+
+    private static string FormatTimestamp(DateTime? timestamp)
+    {
+        if (!timestamp.HasValue)
+        {
+            return "N/A";
+        }
+
+        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc ? timestamp.Value : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
+        var localTime = utcTime.ToLocalTime();
+        var today = DateTime.Now.Date;
+        
+        if (localTime.Date == today)
+        {
+            return localTime.ToString("t"); // Time only (short time format)
+        }
+        
+        return localTime.ToString("g"); // Date and time
+    }
+
+    private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
+    {
+        if (!lastTemp.HasValue)
+        {
+            return false;
+        }
+
+        if (minTemp.HasValue && lastTemp < minTemp)
+        {
+            return true;
+        }
+
+        if (maxTemp.HasValue && lastTemp > maxTemp)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsRecent(DateTime? timestamp)
+    {
+        if (!timestamp.HasValue)
+        {
+            return false;
+        }
+
+        return timestamp.Value >= DateTime.UtcNow.AddMinutes(-15);
+    }
+
+    private static SensorAlertState GetSensorAlertState(DateTime? lastHeartbeat, DateTime? lastTimeStamp)
+    {
+        var heartbeatRecent = IsRecent(lastHeartbeat);
+        var readingRecent = IsRecent(lastTimeStamp);
+
+        if (heartbeatRecent && readingRecent)
+        {
+            return SensorAlertState.Active;
+        }
+
+        if (heartbeatRecent && !readingRecent)
+        {
+            return SensorAlertState.TempProbeDown;
+        }
+
+        return SensorAlertState.Offline;
+    }
+
+    private static string GetHeartbeatText(DateTime? lastHeartbeat)
+    {
+        if (!lastHeartbeat.HasValue)
+        {
+            return "N/A";
+        }
+
+        var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
+        var localTime = utcTime.ToLocalTime();
+        var today = DateTime.Now.Date;
+        
+        if (localTime.Date == today)
+        {
+            return localTime.ToString("t"); // Time only (short time format)
+        }
+        
+        return localTime.ToString("g"); // Date and time
+    }
+
+    private static string GetStatusLabel(SensorAlertState state)
+    {
+        return state switch
+        {
+            SensorAlertState.TempProbeDown => "Temp probe down",
+            SensorAlertState.Offline => "Offline",
+            _ => "Active"
+        };
+    }
+}

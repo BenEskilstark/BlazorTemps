@@ -1,7 +1,48 @@
 ﻿@page "/"
+@inject HttpClient Http
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Farm selection</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Choose a farm</h1>
 
-Welcome to your new app.
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (farms == null)
+{
+    <p><em>Loading farms...</em></p>
+}
+else if (!farms.Any())
+{
+    <p>No farms were found.</p>
+}
+else
+{
+    <p>Select a farm from the list below to view its sensors.</p>
+    <ul class="list-group">
+        @foreach (var farm in farms)
+        {
+            <li class="list-group-item">
+                <a href="@($"/{farm.Name}")">@farm.Name</a>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<FarmDTO>? farms;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            farms = await Http.GetFromJsonAsync<List<FarmDTO>>("farms");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Unable to load farms. " + ex.Message;
+        }
+    }
+}

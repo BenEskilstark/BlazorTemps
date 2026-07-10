@@ -664,18 +664,27 @@ else
             return "N/A";
         }
 
-        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc ? timestamp.Value : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
-        @* var localTime = utcTime.ToLocalTime(); *@
-        DateTime localTime = (DateTime)timestamp;
-        var today = DateTime.Now.Date;
+        // 1. Safely normalize the incoming timestamp to UTC
+        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc 
+            ? timestamp.Value 
+            : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
 
-        if (localTime.Date == today)
+        // 2. Locate the US Eastern Time zone rule (handles EDT/EST shifts automatically)
+        TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        
+        // 3. Convert the normalized UTC time and get "Right Now" in Eastern Time
+        DateTime easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
+        DateTime easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
+
+        // 4. Compare dates using the identical timezone context
+        if (easternTime.Date == easternToday)
         {
-            return localTime.ToString("t");
+            return easternTime.ToString("t"); // e.g., "3:59 PM"
         }
 
-        return localTime.ToString("g");
+        return easternTime.ToString("g"); // e.g., "7/10/2026 3:59 PM"
     }
+
 
     private List<List<ReadingDTO>> lineSegments = new();
     private List<List<ReadingDTO>> outsideLineSegments = new();
@@ -910,25 +919,34 @@ else
         return SensorAlertState.Offline;
     }
 
-    private static string GetHeartbeatText(DateTime? lastHeartbeat)
+    private static string GetHeartbeatText(DateTime? timestamp)
     {
-        if (!lastHeartbeat.HasValue)
+        if (!timestamp.HasValue)
         {
             return "N/A";
         }
 
-        var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
-        @* var localTime = utcTime.ToLocalTime(); *@
-        DateTime localTime = (DateTime)lastHeartbeat;
-        var today = DateTime.Now.Date;
+        // 1. Safely normalize the incoming timestamp to UTC
+        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc 
+            ? timestamp.Value 
+            : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
 
-        if (localTime.Date == today)
+        // 2. Locate the US Eastern Time zone rule (handles EDT/EST shifts automatically)
+        TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+        
+        // 3. Convert the normalized UTC time and get "Right Now" in Eastern Time
+        DateTime easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
+        DateTime easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
+
+        // 4. Compare dates using the identical timezone context
+        if (easternTime.Date == easternToday)
         {
-            return localTime.ToString("t");
+            return easternTime.ToString("t"); // e.g., "3:59 PM"
         }
 
-        return localTime.ToString("g");
+        return easternTime.ToString("g"); // e.g., "7/10/2026 3:59 PM"
     }
+
 
     private static string GetStatusLabel(SensorAlertState state)
     {

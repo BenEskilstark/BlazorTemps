@@ -666,7 +666,7 @@ else
 
         var utcTime = timestamp.Value.Kind == DateTimeKind.Utc ? timestamp.Value : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
         @* var localTime = utcTime.ToLocalTime(); *@
-        var localTime = timestamp;
+        DateTime localTime = (DateTime)timestamp;
         var today = DateTime.Now.Date;
 
         if (localTime.Date == today)
@@ -918,7 +918,8 @@ else
         }
 
         var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
-        var localTime = utcTime.ToLocalTime();
+        @* var localTime = utcTime.ToLocalTime(); *@
+        DateTime localTime = (DateTime)timestamp;
         var today = DateTime.Now.Date;
 
         if (localTime.Date == today)

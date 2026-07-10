@@ -55,23 +55,25 @@ else
                     _ => isOutOfRange ? "sensor-last-temp out-of-range" : "sensor-last-temp"
                 };
 
-                <article class="@cardClass">
-                    <div class="sensor-card-header">
-                        <h2>@sensor.Name</h2>
-                        <span class="@badgeClass">@GetStatusLabel(sensorState)</span>
-                    </div>
-
-                    <div class="sensor-card-body">
-                        <div class="sensor-metric sensor-metric-highlight">
-                            <span class="@temperatureClass"><b>@(FormatTemperature(sensor.LastTempF))</b> at @(FormatTimestamp(sensor.LastTimeStamp))</span>
+                <a href="/@farmName/sensor?sensorID=@sensor.SensorID" class="sensor-card-link">
+                    <article class="@cardClass">
+                        <div class="sensor-card-header">
+                            <h2>@sensor.Name</h2>
+                            <span class="@badgeClass">@GetStatusLabel(sensorState)</span>
                         </div>
 
-                        <div class="sensor-metric">
-                            <span class="metric-label">Last heartbeat</span>
-                            <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@GetHeartbeatText(sensor.LastHeartbeat)</span>
+                        <div class="sensor-card-body">
+                            <div class="sensor-metric sensor-metric-highlight">
+                                <span class="@temperatureClass"><b>@(FormatTemperature(sensor.LastTempF))</b> at @(FormatTimestamp(sensor.LastTimeStamp))</span>
+                            </div>
+
+                            <div class="sensor-metric">
+                                <span class="metric-label">Last heartbeat</span>
+                                <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@GetHeartbeatText(sensor.LastHeartbeat)</span>
+                            </div>
                         </div>
-                    </div>
-                </article>
+                    </article>
+                </a>
             }
         </div>
     }

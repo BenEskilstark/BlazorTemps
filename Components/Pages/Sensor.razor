@@ -1,0 +1,395 @@
+@page "/{farmName}/sensor"
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@using BlazorTemps.Models
+
+<PageTitle>Sensor - @sensorName</PageTitle>
+
+@if (isLoading)
+{
+    <p><em>Loading sensor data...</em></p>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (currentSensor == null)
+{
+    <div class="alert alert-warning">Sensor not found.</div>
+}
+else
+{
+    <div class="sensor-detail-header">
+        <div class="header-left">
+            <div class="header-title">
+                <h1>@currentSensor.Name</h1>
+                <p class="sensor-detail-farm">Farm: @farmName</p>
+            </div>
+            <div class="sensor-detail-card" style="max-height:80px">
+                <div class="sensor-detail-card-item">
+                    <div class="card-item-label">Status</div>
+                    <span class="@GetBadgeClass(sensorState)">@GetStatusLabel(sensorState)</span>
+                </div>
+
+                <div class="sensor-detail-card-item">
+                    <div>
+                        <span class="@GetTemperatureClass(sensorState, isOutOfRange)"><b>@(FormatTemperature(currentSensor.LastTempF))</b></span>
+                        <span style="text-wrap: nowrap" class="card-item-subtext">at @(FormatTimestamp(currentSensor.LastTimeStamp))</span>
+                    </div>
+                </div>
+
+                <div class="sensor-detail-card-item">
+                    <span 
+                        style="text-wrap: nowrap" 
+                        class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
+                    >
+                        @GetHeartbeatText(currentSensor.LastHeartbeat)
+                    </span>
+                </div>
+
+                @if (currentSensor.MinTempF.HasValue)
+                {
+                    <div class="sensor-detail-card-item">
+                        <div class="card-item-label" style="text-wrap: nowrap" >Min Temp</div>
+                        <span 
+                            class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
+                        >
+                            @FormatTemperature(currentSensor.MinTempF)
+                        </span>
+                    </div>
+                }
+
+                @if (currentSensor.MaxTempF.HasValue)
+                {
+                    <div class="sensor-detail-card-item">
+                        <div class="card-item-label" style="text-wrap: nowrap" >Max Temp</div>
+                        <span 
+                            class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
+                        >
+                            @FormatTemperature(currentSensor.MaxTempF)
+                        </span>
+                    </div>
+                }
+            </div>
+        </div>
+        <a class="btn btn-secondary" href="/@farmName">Back to @farmName</a>
+    </div>
+
+    <div class="sensor-detail-container @(isLoadingReadings ? "loading" : "")">
+        <div class="readings-stats-container">
+            @if (isLoadingReadings)
+            {
+                <div class="loading-overlay">
+                    <div class="spinner-container">
+                        <div class="spinner"></div>
+                        <p>Loading readings...</p>
+                    </div>
+                </div>
+            }
+            <div class="time-range-selector">
+                    <label for="timeRange">Time Range:</label>
+                    <select id="timeRange" class="form-select" value="@selectedTimeRange" @onchange="OnTimeRangeChanged">
+                        <option value="Last Hour">Last Hour</option>
+                        <option value="Last 6">Last 6 hours</option>
+                        <option value="Last 12">Last 12 hours</option>
+                        <option value="Last 24">Last 24 hours</option>
+                        <option value="Last 48">Last 48 hours</option>
+                        <option value="Last 72">Last 72 hours</option>
+                        <option value="Last Week">Last Week</option>
+                        <option value="Last Month">Last Month</option>
+                        <option value="Last Year">Last Year</option>
+                        <option value="All Time">All Time</option>
+                    </select>
+                </div>
+
+                @if (readingsError != null)
+                {
+                    <div class="alert alert-danger">@readingsError</div>
+                }
+                else if (readings != null && readings.Any())
+                {
+                    <div class="statistics-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Minimum Temperature</div>
+                            <div class="stat-value">@FormatTemperature(readings.Min(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Maximum Temperature</div>
+                            <div class="stat-value">@FormatTemperature(readings.Max(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Average Temperature</div>
+                            <div class="stat-value">@FormatTemperature(readings.Average(r => r.TempF))</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Reading Count</div>
+                            <div class="stat-value">@readings.Count</div>
+                        </div>
+                    </div>
+
+                    <div class="readings-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Temperature (°F)</th>
+                                    <th>Humidity (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var reading in readings.OrderByDescending(r => r.TimeStamp))
+                                {
+                                    <tr>
+                                        <td>@FormatTimestamp(reading.TimeStamp)</td>
+                                        <td>@reading.TempF.ToString("F1")</td>
+                                        <td>@reading.Humidity.ToString("F1")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p>No readings available for this time range.</p>
+                }
+            </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? farmName { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? sensorID { get; set; }
+
+    private SensorDTO? currentSensor;
+    private List<ReadingDTO>? readings;
+    private string? errorMessage;
+    private string? readingsError;
+    private string? sensorName;
+    private bool isLoading = true;
+    private bool isLoadingReadings = false;
+    private string selectedTimeRange = "Last 6";
+    private bool isOutOfRange = false;
+
+    private enum SensorAlertState
+    {
+        Active,
+        TempProbeDown,
+        Offline
+    }
+
+    private SensorAlertState sensorState = SensorAlertState.Active;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        readings = null;
+        currentSensor = null;
+
+        if (string.IsNullOrWhiteSpace(farmName) || !sensorID.HasValue || sensorID.Value <= 0)
+        {
+            errorMessage = "Invalid farm or sensor ID.";
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            var farms = await Http.GetFromJsonAsync<List<FarmDTO>>("farms");
+            var farm = farms?.FirstOrDefault(f => string.Equals(f.Name, farmName, StringComparison.OrdinalIgnoreCase));
+
+            if (farm == null)
+            {
+                NavigationManager.NavigateTo("/not-found", true);
+                return;
+            }
+
+            var sensors = await Http.GetFromJsonAsync<List<SensorDTO>>($"sensors/{farm.FarmID}");
+            currentSensor = sensors?.FirstOrDefault(s => s.SensorID == sensorID.Value);
+
+            if (currentSensor == null)
+            {
+                errorMessage = "Sensor not found in this farm.";
+                isLoading = false;
+                return;
+            }
+
+            sensorName = currentSensor.Name;
+            sensorState = GetSensorAlertState(currentSensor.LastHeartbeat, currentSensor.LastTimeStamp);
+            isOutOfRange = IsOutOfRange(currentSensor.LastTempF, currentSensor.MinTempF, currentSensor.MaxTempF);
+
+            // Load initial readings
+            await LoadReadings();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Unable to load sensor data. " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnTimeRangeChanged(ChangeEventArgs e)
+    {
+        selectedTimeRange = e.Value?.ToString() ?? "Last 6";
+        await LoadReadings();
+        StateHasChanged();
+    }
+
+    private async Task LoadReadings()
+    {
+        if (!sensorID.HasValue)
+        {
+            return;
+        }
+
+        isLoadingReadings = true;
+        readingsError = null;
+
+        try
+        {
+            var encodedTimeRange = Uri.EscapeDataString(selectedTimeRange);
+            var response = await Http.GetFromJsonAsync<ReadingsResponseDTO>(
+                $"http://temperatures.chickenkiller.com/api/v1/sensor/{sensorID}?timeRange={encodedTimeRange}"
+            );
+
+            readings = response?.Readings ?? new List<ReadingDTO>();
+        }
+        catch (Exception ex)
+        {
+            readingsError = $"Unable to load readings: {ex.Message}";
+            readings = new List<ReadingDTO>();
+        }
+        finally
+        {
+            isLoadingReadings = false;
+        }
+    }
+
+    private static string FormatTemperature(double? temperature)
+    {
+        return temperature.HasValue ? $"{temperature.Value:F1} °F" : "N/A";
+    }
+
+    private static string FormatTimestamp(DateTime? timestamp)
+    {
+        if (!timestamp.HasValue)
+        {
+            return "N/A";
+        }
+
+        var utcTime = timestamp.Value.Kind == DateTimeKind.Utc ? timestamp.Value : DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
+        var localTime = utcTime.ToLocalTime();
+        var today = DateTime.Now.Date;
+
+        if (localTime.Date == today)
+        {
+            return localTime.ToString("t");
+        }
+
+        return localTime.ToString("g");
+    }
+
+    private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
+    {
+        if (!lastTemp.HasValue)
+        {
+            return false;
+        }
+
+        if (minTemp.HasValue && lastTemp < minTemp)
+        {
+            return true;
+        }
+
+        if (maxTemp.HasValue && lastTemp > maxTemp)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsRecent(DateTime? timestamp)
+    {
+        if (!timestamp.HasValue)
+        {
+            return false;
+        }
+
+        return timestamp.Value >= DateTime.UtcNow.AddMinutes(-15);
+    }
+
+    private static SensorAlertState GetSensorAlertState(DateTime? lastHeartbeat, DateTime? lastTimeStamp)
+    {
+        var heartbeatRecent = IsRecent(lastHeartbeat);
+        var readingRecent = IsRecent(lastTimeStamp);
+
+        if (heartbeatRecent && readingRecent)
+        {
+            return SensorAlertState.Active;
+        }
+
+        if (heartbeatRecent && !readingRecent)
+        {
+            return SensorAlertState.TempProbeDown;
+        }
+
+        return SensorAlertState.Offline;
+    }
+
+    private static string GetHeartbeatText(DateTime? lastHeartbeat)
+    {
+        if (!lastHeartbeat.HasValue)
+        {
+            return "N/A";
+        }
+
+        var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
+        var localTime = utcTime.ToLocalTime();
+        var today = DateTime.Now.Date;
+
+        if (localTime.Date == today)
+        {
+            return localTime.ToString("t");
+        }
+
+        return localTime.ToString("g");
+    }
+
+    private static string GetStatusLabel(SensorAlertState state)
+    {
+        return state switch
+        {
+            SensorAlertState.TempProbeDown => "Temp probe down",
+            SensorAlertState.Offline => "Offline",
+            _ => "Active"
+        };
+    }
+
+    private string GetBadgeClass(SensorAlertState state)
+    {
+        return state switch
+        {
+            SensorAlertState.TempProbeDown => "sensor-badge warning",
+            SensorAlertState.Offline => "sensor-badge offline",
+            _ => "sensor-badge active"
+        };
+    }
+
+    private string GetTemperatureClass(SensorAlertState state, bool isOutOfRange)
+    {
+        return state switch
+        {
+            SensorAlertState.Offline => "sensor-last-temp stale",
+            SensorAlertState.TempProbeDown => "sensor-last-temp stale",
+            _ => isOutOfRange ? "sensor-last-temp out-of-range" : "sensor-last-temp"
+        };
+    }
+}

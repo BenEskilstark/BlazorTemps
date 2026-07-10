@@ -23,8 +23,16 @@
     margin-top: 1.5rem;
 }
 
-.sensor-card {
+.sensor-card-link {
+    text-decoration: none;
+    color: inherit;
     flex: 0 1 320px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.sensor-card {
+    flex: 0 1 100%;
     max-width: 100%;
     min-width: 0;
     display: flex;
@@ -47,7 +55,7 @@
     opacity: 0.65;
 }
 
-.sensor-card:hover {
+.sensor-card-link:hover .sensor-card {
     transform: translateY(-3px);
     box-shadow: 0 24px 55px rgba(28, 18, 55, 0.16);
 }

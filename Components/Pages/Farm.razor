@@ -48,7 +48,11 @@ else
             @foreach (var sensor in sortedSensors)
             {
                 var sensorState = GetSensorAlertState(sensor.LastHeartbeat, sensor.LastTimeStamp);
-                var isOutOfRange = IsOutOfRange(sensor.LastTempF, sensor.MinTempF, sensor.MaxTempF);
+                var isOutOfRange = IsOutOfRange(
+                    sensor.LastTempF + sensor.CalibrationValueF, 
+                    sensor.MinTempF, 
+                    sensor.MaxTempF
+                );
                 var cardClass = sensorState == SensorAlertState.Offline ? "sensor-card offline" : "sensor-card";
                 var badgeClass = sensorState switch
                 {
@@ -76,12 +80,17 @@ else
 
                             <div class="sensor-card-body">
                                 <div class="sensor-metric sensor-metric-highlight">
-                                    <span class="@temperatureClass"><b>@(FormatTemperature(sensor.LastTempF))</b> at @(FormatTimestamp(sensor.LastTimeStamp))</span>
+                                    <span class="@temperatureClass">
+                                        <b>@(FormatTemperature(sensor.LastTempF + sensor.CalibrationValueF))</b> 
+                                        at @(FormatTimestamp(sensor.LastTimeStamp))
+                                    </span>
                                 </div>
 
                                 <div class="sensor-metric">
                                     <span class="metric-label">Last heartbeat</span>
-                                    <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">@FormatTimestamp(sensor.LastHeartbeat)</span>
+                                    <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">
+                                        @FormatTimestamp(sensor.LastHeartbeat)
+                                    </span>
                                 </div>
                             </div>
                         </article>
@@ -216,7 +225,7 @@ else
 
 
 
-    private static bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
+    private bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
     {
         if (!lastTemp.HasValue)
         {

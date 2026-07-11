@@ -37,7 +37,9 @@ else
 
                 <div class="sensor-detail-card-item">
                     <div>
-                        <span class="@GetTemperatureClass(sensorState, isOutOfRange)"><b>@(FormatTemperature(currentSensor.LastTempF))</b></span>
+                        <span class="@GetTemperatureClass(sensorState, isOutOfRange)">
+                            <b>@(FormatTemperature(currentSensor.LastTempF + currentSensor.CalibrationValueF))</b>
+                        </span>
                         <span style="text-wrap: nowrap" class="card-item-subtext">at @(FormatTimestamp(currentSensor.LastTimeStamp))</span>
                     </div>
                 </div>
@@ -168,15 +170,21 @@ else
                     <div class="statistics-grid">
                         <div class="stat-card">
                             <div class="stat-label">Average</div>
-                            <div class="stat-value">@FormatTemperature(readings.Average(r => r.TempF))</div>
+                            <div class="stat-value">
+                                @FormatTemperature(readings.Average(r => r.TempF))
+                            </div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Minimum</div>
-                            <div class="stat-value">@FormatTemperature(readings.Min(r => r.TempF))</div>
+                            <div class="stat-value">
+                                @FormatTemperature(readings.Min(r => r.TempF))
+                            </div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Maximum</div>
-                            <div class="stat-value">@FormatTemperature(readings.Max(r => r.TempF))</div>
+                            <div class="stat-value">
+                                @FormatTemperature(readings.Max(r => r.TempF))
+                            </div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-label">Readings</div>
@@ -202,12 +210,11 @@ else
                     <div class="chart-panel">
                         <RadzenChart Style="height: 420px; width: 100%;" ShowLegend="false" Animate="true">
                             <RadzenLegend Visible="false" />
-                            <RadzenCategoryAxis Step="@chartStep" FormatString="@chartCategoryFormatString">
-                                <RadzenAxisTitle Text="Time" />
-                            </RadzenCategoryAxis>
-                            <RadzenValueAxis Min="@chartMin" Max="@chartMax">
-                                <RadzenAxisTitle Text="Temperature (°F)" />
-                            </RadzenValueAxis>
+                            <RadzenCategoryAxis 
+                                Step="@chartStep" 
+                                FormatString="@chartCategoryFormatString"
+                            />
+                            <RadzenValueAxis Min="@chartMin" Max="@chartMax" />
 
                             @foreach (var segment in lineSegments)
                             {
@@ -400,7 +407,10 @@ else
 
             sensorName = currentSensor.Name;
             sensorState = GetSensorAlertState(currentSensor.LastHeartbeat, currentSensor.LastTimeStamp);
-            isOutOfRange = IsOutOfRange(currentSensor.LastTempF, currentSensor.MinTempF, currentSensor.MaxTempF);
+            isOutOfRange = IsOutOfRange(
+                currentSensor.LastTempF + currentSensor.CalibrationValueF, 
+                currentSensor.MinTempF, currentSensor.MaxTempF
+            );
 
             // Load initial readings
             await LoadReadings();
@@ -616,7 +626,9 @@ else
         );
 
         var fetched = response?.Readings ?? new List<ReadingDTO>();
-        readings = FilterFutureReadings(fetched).ToList();
+        readings = FilterFutureReadings(fetched)
+            .ToList();
+        readings.ForEach(r => r.TempF += currentSensor?.CalibrationValueF ?? 0.0);
     }
 
     private async Task LoadOutsideSensorReadings()
@@ -871,7 +883,8 @@ else
 
     private static TimeSpan GetChartStep(TimeSpan rangeSpan)
     {
-        return rangeSpan switch
+        return rangeSpan / 3;
+        @* return rangeSpan switch
         {
             var span when span <= TimeSpan.FromHours(1) => TimeSpan.FromMinutes(10),
             var span when span <= TimeSpan.FromHours(6) => TimeSpan.FromHours(1),
@@ -885,7 +898,7 @@ else
             var span when span <= TimeSpan.FromDays(90) => TimeSpan.FromDays(7),
             var span when span <= TimeSpan.FromDays(180) => TimeSpan.FromDays(14),
             _ => TimeSpan.FromDays(30),
-        };
+        }; *@
     }
 
     private static string GetCategoryAxisFormat(TimeSpan rangeSpan)

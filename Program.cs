@@ -7,7 +7,11 @@ builder.Services.AddHttpClient("TemperatureApi", client =>
 {
     client.BaseAddress = new Uri("http://temperatures.chickenkiller.com/api/v1/");
 });
-builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("TemperatureApi"));
+builder.Services
+    .AddScoped(sp => sp
+        .GetRequiredService<IHttpClientFactory>()
+        .CreateClient("TemperatureApi")
+    );
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

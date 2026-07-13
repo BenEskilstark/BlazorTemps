@@ -29,7 +29,7 @@ else
                 </div>
                 <p class="sensor-detail-farm">Farm: @farmName</p>
             </div>
-            <div class="sensor-detail-card" style="max-height:80px">
+            <div class="sensor-detail-card">
                 <div class="sensor-detail-card-item">
                     <div class="card-item-label">Status</div>
                     <span class="@GetBadgeClass(sensorState)">@GetStatusLabel(sensorState)</span>
@@ -40,18 +40,10 @@ else
                         <span class="@GetTemperatureClass(sensorState, isOutOfRange)">
                             <b>@(FormatTemperature(currentSensor.LastTempF + currentSensor.CalibrationValueF))</b>
                         </span>
-                        <span style="text-wrap: nowrap" class="card-item-subtext">at @(FormatTimestamp(currentSensor.LastTimeStamp))</span>
+                        <span style="text-wrap: nowrap" class="card-item-subtext">at @(TimeHelpers.FormatTimestamp(currentSensor.LastTimeStamp))</span>
                     </div>
                 </div>
 
-                <div class="sensor-detail-card-item">
-                    <span 
-                        style="text-wrap: nowrap" 
-                        class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
-                    >
-                        @FormatTimestamp(currentSensor.LastHeartbeat)
-                    </span>
-                </div>
 
                 @if (currentSensor.MinTempF.HasValue)
                 {
@@ -76,6 +68,15 @@ else
                         </span>
                     </div>
                 }
+
+                <div class="sensor-detail-card-item">
+                    <span 
+                        style="text-wrap: nowrap" 
+                        class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)"
+                    >
+                        @TimeHelpers.FormatTimestamp(currentSensor.LastHeartbeat)
+                    </span>
+                </div>
             </div>
         </div>
         <a class="btn btn-secondary" href="/@farmName">Back to @farmName</a>
@@ -225,7 +226,7 @@ else
                                                   StrokeWidth="2">
                                     <TooltipTemplate Context="data">
                                         <div style="padding: 4px 8px;">
-                                            <strong>Time:</strong> @data.TimeStamp.ToString("g") <br />
+                                            <strong>Time:</strong> @TimeHelpers.FormatTimestamp(data.TimeStamp) <br />
                                             <strong>Temp:</strong> @data.TempF °F
                                         </div>
                                     </TooltipTemplate>
@@ -241,7 +242,7 @@ else
                                                   StrokeWidth="2">
                                     <TooltipTemplate Context="data">
                                         <div style="padding: 4px 8px;">
-                                            <strong>Time:</strong> @data.TimeStamp.ToString("g") <br />
+                                            <strong>Time:</strong> @TimeHelpers.FormatTimestamp(data.TimeStamp)<br />
                                             <strong>Outside Temp:</strong> @data.TempF °F
                                         </div>
                                     </TooltipTemplate>
@@ -667,36 +668,6 @@ else
     private static string FormatTemperature(double? temperature)
     {
         return temperature.HasValue ? $"{temperature.Value:F1} °F" : "N/A";
-    }
-
-    private static string FormatTimestamp(DateTime? timestamp)
-    {
-        if (!timestamp.HasValue)
-        {
-            return "N/A";
-        }
-
-        // 1. Strip out any local server bias and treat the digits as UTC
-        DateTime utcTime = DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
-
-        // 2. Identify the Eastern timezone
-        TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-        
-        // 3. Convert to Eastern Time digits
-        DateTime easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
-        DateTime easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
-
-        // 4. Force a US Culture to guarantee 12-hour AM/PM notation
-        var usCulture = new System.Globalization.CultureInfo("en-US");
-
-        if (easternTime.Date == easternToday)
-        {
-            // "h" forces 12-hour format, "tt" forces AM/PM (e.g., "4:22 PM")
-            return easternTime.ToString("h:mm tt", usCulture); 
-        }
-
-        // (e.g., "7/10/2026 4:22 PM")
-        return easternTime.ToString("M/d/yyyy h:mm tt", usCulture); 
     }
 
 

@@ -82,14 +82,14 @@ else
                                 <div class="sensor-metric sensor-metric-highlight">
                                     <span class="@temperatureClass">
                                         <b>@(FormatTemperature(sensor.LastTempF + sensor.CalibrationValueF))</b> 
-                                        at @(FormatTimestamp(sensor.LastTimeStamp))
+                                        at @(TimeHelpers.FormatTimestamp(sensor.LastTimeStamp))
                                     </span>
                                 </div>
 
                                 <div class="sensor-metric">
                                     <span class="metric-label">Last heartbeat</span>
                                     <span class="metric-value @(sensorState == SensorAlertState.Offline ? "stale" : string.Empty)">
-                                        @FormatTimestamp(sensor.LastHeartbeat)
+                                        @TimeHelpers.FormatTimestamp(sensor.LastHeartbeat)
                                     </span>
                                 </div>
                             </div>
@@ -141,8 +141,13 @@ else
 
         try
         {
-            var farms = await Http.GetFromJsonAsync<List<FarmDTO>>("farms");
-            currentFarm = farms?.FirstOrDefault(f => string.Equals(f.Name, farmName, StringComparison.OrdinalIgnoreCase));
+            List<FarmDTO>? farms = await Http
+                .GetFromJsonAsync<List<FarmDTO>>("farms");
+            currentFarm = farms?
+                .FirstOrDefault(f => 
+                    string.Equals(f.Name, farmName, StringComparison.OrdinalIgnoreCase)
+                    // || f.Name.Split(' ')[0] == farmName.Split(' ')[0]
+                );
 
             if (currentFarm == null)
             {
@@ -150,7 +155,9 @@ else
                 return;
             }
 
-            sensors = await Http.GetFromJsonAsync<List<SensorDTO>>($"sensors/{currentFarm.FarmID}");
+            sensors = await Http.GetFromJsonAsync<List<SensorDTO>>(
+                $"sensors/{currentFarm.FarmID}"
+            );
         }
         catch (Exception ex)
         {
@@ -164,10 +171,7 @@ else
 
     private async Task ToggleFavorite(int sensorId)
     {
-        if (module == null)
-        {
-            return;
-        }
+        if (module == null) return;
 
         if (favorites.Contains(sensorId))
         {
@@ -193,54 +197,15 @@ else
         return temperature.HasValue ? $"{temperature.Value:F1} °F" : "N/A";
     }
 
-    private static string FormatTimestamp(DateTime? timestamp)
-    {
-        if (!timestamp.HasValue)
-        {
-            return "N/A";
-        }
-
-        // 1. Force the incoming digits to be treated as UTC
-        var utcTime = DateTime.SpecifyKind(timestamp.Value, DateTimeKind.Utc);
-
-        // 2. Safely grab the Eastern rules 
-        var easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
-        
-        // 3. Perform the conversion
-        var easternTime = TimeZoneInfo.ConvertTimeFromUtc(utcTime, easternZone);
-        var easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, easternZone).Date;
-        
-        // 4. Force standard US formatting rules natively
-        var culture = new System.Globalization.CultureInfo("en-US");
-
-        if (easternTime.Date == easternToday)
-        {
-            return easternTime.ToString("h:mm tt", culture); // e.g., 4:26 PM
-        }
-        
-        return easternTime.ToString("M/d/yyyy h:mm tt", culture); // e.g., 7/10/2026 4:26 PM
-    }
-
 
 
 
 
     private bool IsOutOfRange(double? lastTemp, double? minTemp, double? maxTemp)
     {
-        if (!lastTemp.HasValue)
-        {
-            return false;
-        }
-
-        if (minTemp.HasValue && lastTemp < minTemp)
-        {
-            return true;
-        }
-
-        if (maxTemp.HasValue && lastTemp > maxTemp)
-        {
-            return true;
-        }
+        if (!lastTemp.HasValue) return false;
+        if (minTemp.HasValue && lastTemp < minTemp) return true;
+        if (maxTemp.HasValue && lastTemp > maxTemp) return true;
 
         return false;
     }
@@ -275,10 +240,7 @@ else
 
     private static string GetHeartbeatText(DateTime? lastHeartbeat)
     {
-        if (!lastHeartbeat.HasValue)
-        {
-            return "N/A";
-        }
+        if (!lastHeartbeat.HasValue) return "N/A";
 
         var utcTime = lastHeartbeat.Value.Kind == DateTimeKind.Utc ? lastHeartbeat.Value : DateTime.SpecifyKind(lastHeartbeat.Value, DateTimeKind.Utc);
         var localTime = utcTime.ToLocalTime();

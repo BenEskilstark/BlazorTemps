@@ -202,6 +202,8 @@ else
 
                 </div>
 
+                <div><b>@currentSensor.Name</b></div>
+
                 @if (readingsError != null)
                 {
                     <div class="alert alert-danger">@readingsError</div>
@@ -717,8 +719,35 @@ else
         chartMin = null;
         chartMax = null;
 
+        // Define the Eastern Time Zone info
+        TimeZoneInfo easternZone = TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time");
+
+        // Helper to map and convert a ReadingDTO list to Eastern Time
+        List<ReadingDTO> ProcessReadingsToEastern(IEnumerable<ReadingDTO>? source)
+        {
+            return source?
+                .OrderBy(r => r.TimeStamp)
+                .Select(r => new ReadingDTO
+                {
+                    // Assuming all other fields map over, adjust if ReadingDTO has more properties
+                    TimeStamp = TimeZoneInfo.ConvertTime(r.TimeStamp, easternZone),
+                    TempF = r.TempF,
+                    Humidity = r.Humidity
+                })
+                .ToList() ?? new List<ReadingDTO>();
+        }
+
+        if (readings.Any())
+        {
+            var minVal = readings.Min(r => r.TempF);
+            var maxVal = readings.Max(r => r.TempF);
+            var padding = Math.Max((maxVal - minVal) * 0.08, 1.0);
+            chartMin = Math.Floor((minVal - padding) * 10) / 10.0;
+            chartMax = Math.Ceiling((maxVal + padding) * 10) / 10.0;
+        }
+
         var currentValues = new List<double>();
-        var sortedReadings = readings?.OrderBy(r => r.TimeStamp).ToList() ?? new List<ReadingDTO>();
+        var sortedReadings = ProcessReadingsToEastern(readings);
         if (sortedReadings.Any())
         {
             lineSegments.AddRange(BuildLineSegments(sortedReadings));
@@ -726,12 +755,18 @@ else
             currentValues.AddRange(sortedReadings.Select(r => r.TempF));
         }
 
-        var sortedOutsideReadings = outsideReadings?.OrderBy(r => r.TimeStamp).ToList() ?? new List<ReadingDTO>();
+        var sortedOutsideReadings = ProcessReadingsToEastern(outsideReadings);
         if (sortedOutsideReadings.Any())
         {
             outsideLineSegments.AddRange(BuildLineSegments(sortedOutsideReadings));
             outsideHumidityLineSegments.AddRange(BuildLineSegments(sortedOutsideReadings));
             currentValues.AddRange(sortedOutsideReadings.Select(r => r.TempF));
+
+            var minVal = sortedOutsideReadings.Min(r => r.TempF);
+            var maxVal = sortedOutsideReadings.Max(r => r.TempF);
+            var padding = Math.Max((maxVal - minVal) * 0.08, 1.0);
+            chartMin = Math.Min(chartMin ?? 1000, Math.Floor((minVal - padding) * 10) / 10.0);
+            chartMax = Math.Max(chartMax ?? -1000, Math.Ceiling((maxVal + padding) * 10) / 10.0);
         }
 
         var humidityValues = new List<double>();
@@ -765,8 +800,8 @@ else
         }
 
         if (sortedReadings.Any() && 
-            currentSensor?.MinTempF is double sensorMin
-            @* sensorMin >= chartMin && sensorMin <= chartMax *@
+            currentSensor?.MinTempF is double sensorMin &&
+            sensorMin >= chartMin && sensorMin <= chartMax
         )
         {
             showMinThresholdLine = true;
@@ -778,8 +813,8 @@ else
         }
 
         if (sortedReadings.Any() && 
-            currentSensor?.MaxTempF is double sensorMax
-            @* sensorMax >= chartMin && sensorMax <= chartMax *@
+            currentSensor?.MaxTempF is double sensorMax && 
+            sensorMax >= chartMin && sensorMax <= chartMax
         )
         {
             showMaxThresholdLine = true;
@@ -854,7 +889,7 @@ else
 
     private static TimeSpan GetChartStep(TimeSpan rangeSpan)
     {
-        return rangeSpan / 3;
+        return rangeSpan / 2;
         @* return rangeSpan switch
         {
             var span when span <= TimeSpan.FromHours(1) => TimeSpan.FromMinutes(10),
